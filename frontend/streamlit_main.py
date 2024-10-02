@@ -128,7 +128,31 @@ elif page == "Delete":
     except ConnectionError as e:
         st.write("Couldn't reach backend")
 
-    to_post = {"model_name": model_name}
+    
+    # 모델이 선택되면 해당 모델의 버전 목록 가져오기
+    if model_name:
+        try:
+            response = requests.get(f"{BACKEND_URL}/model_versions/{model_name}")
+            if response.ok:
+                version_list = response.json()
+                version_list.insert(0, "All")  # "All" 옵션을 추가하여 모든 버전을 선택할 수 있게 함
+                model_version = st.selectbox(label="Select model version", options=version_list)
+            else:
+                st.write(f"No versions found for model {model_name}")
+        except ConnectionError as e:
+            st.write("Couldn't reach backend")
+    # 삭제할 모델과 버전 선택 후 삭제
+    if model_version == "All":
+        to_post = {
+            "model_name": model_name,
+            "model_version": None  # 모든 버전을 삭제할 때는 None으로 설정
+        }
+    else:
+        to_post = {
+            "model_name": model_name,
+            "model_version": model_version  # 특정 버전을 삭제할 때는 해당 버전 전달
+        }
+
     # Delete on the press of a button
     if st.button("Delete"):
         try:
