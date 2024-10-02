@@ -60,10 +60,9 @@ def train_model_task(model_name: str, hyperparams: dict, epochs: int):
             mlflow.pytorch.log_model(
                 model, "LinearModel-MNIST", registered_model_name=model_name)
         # Transition to production. We search for the last model with the name and we stage it to production
-        mv = mlflowclient.search_model_versions(
+        latest_mv = mlflowclient.search_model_versions(
             f"name='{model_name}'")[-1]  # Take last model version
-        mlflowclient.transition_model_version_stage(
-            name=mv.name, version=mv.version, stage="production")
+        mlflowclient.set_registered_model_alias(model_name, alias='Champion', version=latest_mv.version)
 
 
 @app.get("/")
@@ -75,9 +74,17 @@ async def read_root():
 @app.get("/models")
 async def get_models_api():
     """Gets a list with model names"""
-    model_list = mlflowclient.list_registered_models()
+    model_list = mlflowclient.search_registered_models()
     model_list = [model.name for model in model_list]
     return model_list
+
+@app.get("/model_versions/{model_name}")
+async def get_model_versions_api(model_name: str):
+    """Gets a list with model versions for the given model"""
+    versions = mlflowclient.search_model_versions(f"name='{model_name}'")
+    version_list = [v.version for v in versions]
+    return version_list
+
 
 
 @app.post("/train")
@@ -100,7 +107,7 @@ async def predict_api(data: PredictApiData):
     model_name = data.model_name
     # Fetch the last model in production
     model = mlflow.pyfunc.load_model(
-        model_uri=f"models:/{model_name}/Production"
+        model_uri=f"models:/{model_name}@Champion"
     )
     # Preprocess the image
     # Flatten input, create a batch of one and normalize
